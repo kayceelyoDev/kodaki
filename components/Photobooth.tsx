@@ -45,7 +45,7 @@ const TEMPLATES = [
 
 const PRESETS = [
   { id: 'noir', name: 'Studio Noir', layout: '2x4-strip', template: 'noir', badge: 'POPULAR' },
-  { id: 'social', name: 'Social App', layout: '1x1', template: 'social', badge: 'TRENDING' },
+  { id: 'social', name: 'Social App', layout: '2x4-strip', template: 'social', badge: 'TRENDING' },
   { id: 'camcorder', name: 'Vintage Cam', layout: '2x4-strip', template: 'camcorder', badge: '' },
   { id: 'love-letter', name: 'Love Letter', layout: '1x3', template: 'love-letter', badge: 'NEW' },
   { id: 'directors-cut', name: 'Director Cut', layout: '2x4-strip', template: 'directors-cut', badge: 'NEW' },
@@ -120,6 +120,7 @@ export default function Photobooth() {
   const [stickers, setStickers] = useState<{id: number, icon: React.ReactNode}[]>([]);
   const [copies, setCopies] = useState(1);
   const [location, setLocation] = useState('Cebu City, PH');
+  const [canvasHeight, setCanvasHeight] = useState<number>(800);
   
   const currentDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }).toUpperCase();
   const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -128,6 +129,20 @@ export default function Photobooth() {
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const [previewScale, setPreviewScale] = useState<number | undefined>(undefined);
+
+  // Measure Canvas Height for Transform Scaling Constraint
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        if (entry.contentRect.height > 0) {
+          setCanvasHeight(entry.contentRect.height);
+        }
+      }
+    });
+    observer.observe(canvasRef.current);
+    return () => observer.disconnect();
+  }, [phase, layout, border, stickers]);
 
   // Dynamic Mobile Sticky Preview State
   const [showStickyPreview, setShowStickyPreview] = useState(true);
@@ -963,10 +978,29 @@ export default function Photobooth() {
           
           <div className="pb-main w-full h-full flex flex-col items-center justify-center relative overflow-hidden pt-4 pb-24 lg:pb-0">
             {/* The responsive scaling wrapper outside canvasRef */}
-            <div id="preview-zoom-wrapper" style={{ zoom: previewScale }}>
+            <div 
+              id="preview-zoom-wrapper" 
+              style={{ 
+                width: `${(layout === '2x4-strip' && phase === 'edit' ? 800 : 500) * (previewScale || 1)}px`,
+                height: `${canvasHeight * (previewScale || 1)}px`,
+                position: 'relative',
+                transition: 'width 0.2s, height 0.2s',
+                margin: '0 auto'
+              }}
+            >
+              <div 
+                style={{ 
+                  transform: `scale(${previewScale || 1})`, 
+                  transformOrigin: 'top left',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: layout === '2x4-strip' && phase === 'edit' ? '800px' : '500px'
+                }}
+              >
               <div 
                 ref={canvasRef} 
-                style={{ width: layout === '2x4-strip' && phase === 'edit' ? '800px' : '500px' }}
+                style={{ width: '100%' }}
                 className="relative mx-auto"
               >
               <div 
@@ -1000,6 +1034,7 @@ export default function Photobooth() {
                 ))}
               </div>
               </div>
+            </div>
             </div>
           </div>
 
