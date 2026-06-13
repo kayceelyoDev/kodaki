@@ -223,6 +223,29 @@ export default function Photobooth() {
 
   const handleDownload = async () => {
     if (canvasRef.current) {
+      // Find all wrapping containers that could restrict layout or visibility
+      const mainContainer = document.querySelector('.pb-main') as HTMLElement;
+      const zoomWrapper = document.getElementById('preview-zoom-wrapper') as HTMLElement;
+      const areaWrapper = document.getElementById('canvas-area-wrapper') as HTMLElement;
+      
+      // Store original styles
+      const origMainOverflow = mainContainer ? mainContainer.style.overflow : '';
+      const origMainHeight = mainContainer ? mainContainer.style.height : '';
+      const origTransform = zoomWrapper ? zoomWrapper.style.transform : '';
+      const origAreaOverflow = areaWrapper ? areaWrapper.style.overflow : '';
+      
+      // Remove all constraints temporarily
+      if (mainContainer) {
+        mainContainer.style.overflow = 'visible';
+        mainContainer.style.height = 'auto';
+      }
+      if (zoomWrapper) {
+        zoomWrapper.style.transform = 'none';
+      }
+      if (areaWrapper) {
+        areaWrapper.style.overflow = 'visible';
+      }
+
       setIsExporting(true);
       await new Promise(resolve => setTimeout(resolve, 100));
       
@@ -239,6 +262,17 @@ export default function Photobooth() {
       } catch (err) {
         console.error('Failed to export image', err);
       } finally {
+        // Restore all original constraints instantly
+        if (mainContainer) {
+          mainContainer.style.overflow = origMainOverflow;
+          mainContainer.style.height = origMainHeight;
+        }
+        if (zoomWrapper) {
+          zoomWrapper.style.transform = origTransform;
+        }
+        if (areaWrapper) {
+          areaWrapper.style.overflow = origAreaOverflow;
+        }
         setIsExporting(false);
       }
     }
@@ -1012,9 +1046,19 @@ export default function Photobooth() {
 
         <div id="canvas-area-wrapper" className="flex-1 bg-slate-200/50 rounded-3xl overflow-hidden relative flex items-center justify-center p-2 lg:p-8 border border-slate-200 shadow-inner h-[400px] lg:h-auto lg:min-h-[400px]">
           
-          <div className="pb-main w-full h-full flex flex-col items-center justify-center relative overflow-hidden pt-4 pb-24 lg:pb-0">
+          <div className="pb-main w-full h-full flex flex-col items-center relative overflow-hidden pt-4 pb-24 lg:pb-0">
             {/* The responsive scaling wrapper outside canvasRef */}
-            <div id="preview-zoom-wrapper" style={{ zoom: previewScale }}>
+            <div 
+              id="preview-zoom-wrapper" 
+              style={{ 
+                transform: previewScale ? `scale(${previewScale})` : 'none', 
+                transformOrigin: 'top center',
+                transition: 'transform 0.2s ease-out',
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'center'
+              }}
+            >
               <div 
                 ref={canvasRef} 
                 style={{ width: layout === '2x4-strip' && phase === 'edit' ? '800px' : '500px' }}
