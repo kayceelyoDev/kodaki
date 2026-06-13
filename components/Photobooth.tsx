@@ -200,6 +200,8 @@ export default function Photobooth() {
   }, [countdown, capturePhoto]);
 
   const handleDownload = async () => {
+    if (isExporting) return;
+
     if (canvasRef.current) {
       const zoomWrapper = document.getElementById('preview-zoom-wrapper') as HTMLElement;
       const origTransform = zoomWrapper ? zoomWrapper.style.transform : '';
@@ -209,28 +211,64 @@ export default function Photobooth() {
       }
 
       setIsExporting(true);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Delay helper
+      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      
+      // Timeout helper to prevent hanging on Safari
+      const timeout = (ms: number, message: string) => 
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(message)), ms));
+
+      await delay(100);
       
       try {
-        // iOS Safari Bug Fix: The first time html-to-image clones the DOM, Safari often fails to rasterize base64 images inside the hidden SVG in time, resulting in blank photos.
-        // We force a quick dummy render first to make Safari load the images into its cache.
-        await toPng(canvasRef.current, { pixelRatio: 1, backgroundColor: 'transparent' });
-        
-        // Wait a tiny bit for Safari's memory to catch up
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Step 1: Pre-decode all capturing images in the DOM
+        const images = canvasRef.current.querySelectorAll('img');
+        await Promise.all(
+          Array.from(images).map(img => {
+            if (img.complete) return img.decode().catch(() => {});
+            return new Promise<void>((resolve) => {
+              img.onload = () => img.decode().then(() => resolve()).catch(() => resolve());
+              img.onerror = () => resolve();
+            });
+          })
+        );
 
-        // Actual export
-        const dataUrl = await toPng(canvasRef.current, {
+        // Step 2: Warmed up cache-pass (first call to toPng with skipped fonts)
+        const firstPassOptions = {
+          pixelRatio: 1,
+          backgroundColor: 'transparent',
+          skipFonts: true,
+          fontEmbedCSS: ''
+        };
+        
+        await Promise.race([
+          toPng(canvasRef.current, firstPassOptions),
+          timeout(3000, 'First render pass timed out')
+        ]);
+        
+        // Wait a bit for Safari's GPU and cache pipeline to catch up
+        await delay(200);
+
+        // Step 3: High resolution export (second call with skipped fonts)
+        const exportOptions = {
           pixelRatio: 2,
-          backgroundColor: 'transparent'
-        });
+          backgroundColor: 'transparent',
+          skipFonts: true,
+          fontEmbedCSS: ''
+        };
+        
+        const dataUrl = await Promise.race([
+          toPng(canvasRef.current, exportOptions),
+          timeout(3000, 'Final export pass timed out')
+        ]);
         
         const link = document.createElement('a');
         link.download = `kodaki-${Date.now()}-x${copies}.png`;
         link.href = dataUrl;
         link.click();
       } catch (err) {
-        console.error('Failed to export image', err);
+        console.error('Failed to export image:', err);
       } finally {
         if (zoomWrapper) {
           zoomWrapper.style.transform = origTransform;
@@ -239,6 +277,7 @@ export default function Photobooth() {
       }
     }
   };
+
 
   const handleDiscard = () => {
     setPhotos([]);
