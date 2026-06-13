@@ -120,7 +120,6 @@ export default function Photobooth() {
   const [stickers, setStickers] = useState<{id: number, icon: React.ReactNode}[]>([]);
   const [copies, setCopies] = useState(1);
   const [location, setLocation] = useState('Cebu City, PH');
-  const [canvasHeight, setCanvasHeight] = useState<number>(800);
   
   const currentDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }).toUpperCase();
   const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -128,58 +127,22 @@ export default function Photobooth() {
   const webcamRef = useRef<Webcam>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  const [previewScale, setPreviewScale] = useState<number | undefined>(undefined);
-
-  // Measure Canvas Height for Transform Scaling Constraint
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      for (let entry of entries) {
-        if (entry.contentRect.height > 0) {
-          setCanvasHeight(entry.contentRect.height);
-        }
-      }
-    });
-    observer.observe(canvasRef.current);
-    return () => observer.disconnect();
-  }, [phase, layout, border, stickers]);
-
-  // Dynamic Mobile Sticky Preview State
-  const [showStickyPreview, setShowStickyPreview] = useState(true);
-  const lastScrollY = useRef(0);
+  const [previewScale, setPreviewScale] = useState<number>(1);
 
   useEffect(() => {
-    if (phase !== 'setup') return;
-    
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      // Show immediately if scrolled up, or if near the top
-      if (currentScrollY < 100 || currentScrollY < lastScrollY.current - 5) {
-        setShowStickyPreview(true);
-      } else if (currentScrollY > lastScrollY.current + 5 && currentScrollY > 100) {
-        // Hide when scrolling down past the header (added 5px buffer to avoid jitter)
-        setShowStickyPreview(false);
-      }
-      lastScrollY.current = currentScrollY;
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [phase]);
-
-  useEffect(() => {
-    if (phase !== 'capture' && phase !== 'edit') return;
+    if (phase !== 'capture' && phase !== 'edit' && phase !== 'setup') return;
     const calculateScale = () => {
-      const container = document.getElementById('canvas-area-wrapper') || document.getElementById('capture-container');
+      const container = document.getElementById('setup-preview-container') || document.getElementById('canvas-area-wrapper') || document.getElementById('capture-container');
       if (container) {
-        // Determine available space (subtracting some padding for safety)
-        const availableWidth = container.clientWidth - 40; 
-        const availableHeight = container.clientHeight - 120;
+        // Determine available space (subtracting padding for safety and UI buttons)
+        const availableWidth = container.clientWidth - (phase === 'setup' ? 40 : 40); 
+        const availableHeight = container.clientHeight - (phase === 'setup' ? 140 : 120);
         
         // Determine expected dimensions of the unscaled canvas
-        const expectedWidth = layout === '2x4-strip' && phase === 'edit' ? 800 : 500;
+        const expectedWidth = layout === '2x4-strip' && (phase === 'edit' || phase === 'setup') ? 800 : 500;
         const isTall = ['1x3', '1x4', '2x4-strip'].includes(layout);
-        const expectedHeight = isTall ? 1500 : 750; // Increased base height estimate slightly for safety
+        // Add accurate height padding
+        const expectedHeight = isTall ? 1400 : 700; 
         
         // Calculate required scale for both axes to fit
         const scaleW = availableWidth / expectedWidth;
@@ -238,27 +201,11 @@ export default function Photobooth() {
 
   const handleDownload = async () => {
     if (canvasRef.current) {
-      // Find all wrapping containers that could restrict layout or visibility
-      const mainContainer = document.querySelector('.pb-main') as HTMLElement;
       const zoomWrapper = document.getElementById('preview-zoom-wrapper') as HTMLElement;
-      const areaWrapper = document.getElementById('canvas-area-wrapper') as HTMLElement;
+      const origTransform = zoomWrapper ? zoomWrapper.style.transform : '';
       
-      // Store original styles
-      const origMainOverflow = mainContainer ? mainContainer.style.overflow : '';
-      const origMainHeight = mainContainer ? mainContainer.style.height : '';
-      const origZoom = zoomWrapper ? zoomWrapper.style.zoom : '';
-      const origAreaOverflow = areaWrapper ? areaWrapper.style.overflow : '';
-      
-      // Remove all constraints temporarily
-      if (mainContainer) {
-        mainContainer.style.overflow = 'visible';
-        mainContainer.style.height = 'auto';
-      }
       if (zoomWrapper) {
-        zoomWrapper.style.zoom = '1';
-      }
-      if (areaWrapper) {
-        areaWrapper.style.overflow = 'visible';
+        zoomWrapper.style.transform = 'none';
       }
 
       setIsExporting(true);
@@ -277,16 +224,8 @@ export default function Photobooth() {
       } catch (err) {
         console.error('Failed to export image', err);
       } finally {
-        // Restore all original constraints instantly
-        if (mainContainer) {
-          mainContainer.style.overflow = origMainOverflow;
-          mainContainer.style.height = origMainHeight;
-        }
         if (zoomWrapper) {
-          zoomWrapper.style.zoom = origZoom;
-        }
-        if (areaWrapper) {
-          areaWrapper.style.overflow = origAreaOverflow;
+          zoomWrapper.style.transform = origTransform;
         }
         setIsExporting(false);
       }
@@ -739,14 +678,19 @@ export default function Photobooth() {
         >
           {/* Right Column: Live Visualization (Now First in DOM for mobile sticky support) */}
           <div 
-            className={`w-full lg:w-[600px] xl:w-[700px] flex-shrink-0 bg-slate-50/80 rounded-3xl border border-slate-200 pt-6 pb-20 px-4 md:p-8 flex flex-col items-center justify-center relative overflow-hidden h-[450px] lg:h-auto min-h-[500px] lg:min-h-full sticky z-30 shadow-xl lg:shadow-inner mb-6 lg:mb-0 transition-all duration-500 ease-in-out ${
-              showStickyPreview ? 'top-4 lg:top-auto translate-y-0 opacity-100' : 'top-4 lg:top-auto -translate-y-[120%] lg:translate-y-0 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto'
-            }`}
+            id="setup-preview-container"
+            className="w-full lg:w-[600px] xl:w-[700px] flex-shrink-0 bg-slate-50/80 rounded-3xl border border-slate-200 p-0 flex flex-col relative h-[500px] lg:h-auto min-h-[500px] lg:min-h-full z-30 shadow-xl lg:shadow-inner mb-6 lg:mb-0 overflow-hidden lg:sticky lg:top-4"
           >
-             <div className="w-full flex-1 flex justify-center items-center overflow-visible">
-               {/* Mobile scaling trick: CSS zoom shrinks layout bounds properly so it doesn't leave blank space */}
-               <div className={['1x3', '1x4', '2x4-strip'].includes(layout) ? 'pb-zoom-1x' : 'pb-zoom-2x'}>
-                 <div style={{ width: layout === '2x4-strip' ? '800px' : '500px' }}>
+             <div className="w-full flex-1 flex justify-center items-center overflow-hidden relative">
+               <div className="absolute inset-0 flex justify-center items-center">
+                 <div 
+                   style={{ 
+                     transform: `scale(${previewScale})`,
+                     transformOrigin: 'center center',
+                     width: layout === '2x4-strip' ? '800px' : '500px',
+                     flexShrink: 0
+                   }}
+                 >
                    <div 
                      className={`pb-canvas-container border-${border} shadow-2xl`}
                      style={{ 
@@ -977,31 +921,20 @@ export default function Photobooth() {
         <div id="canvas-area-wrapper" className="flex-1 bg-slate-200/50 rounded-3xl overflow-hidden relative flex items-center justify-center p-2 lg:p-8 border border-slate-200 shadow-inner h-[400px] lg:h-auto lg:min-h-[400px]">
           
           <div className="pb-main w-full h-full flex flex-col items-center justify-center relative overflow-hidden pt-4 pb-24 lg:pb-0">
-            {/* The responsive scaling wrapper outside canvasRef */}
-            <div 
-              id="preview-zoom-wrapper" 
-              style={{ 
-                width: `${(layout === '2x4-strip' && phase === 'edit' ? 800 : 500) * (previewScale || 1)}px`,
-                height: `${canvasHeight * (previewScale || 1)}px`,
-                position: 'relative',
-                transition: 'width 0.2s, height 0.2s',
-                margin: '0 auto'
-              }}
-            >
+            <div className="absolute inset-0 flex justify-center items-center mt-4 mb-24 lg:mb-0">
               <div 
+                id="preview-zoom-wrapper"
                 style={{ 
-                  transform: `scale(${previewScale || 1})`, 
-                  transformOrigin: 'top left',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: layout === '2x4-strip' && phase === 'edit' ? '800px' : '500px'
+                  transform: `scale(${previewScale})`, 
+                  transformOrigin: 'center center',
+                  width: layout === '2x4-strip' && phase === 'edit' ? '800px' : '500px',
+                  flexShrink: 0
                 }}
               >
               <div 
                 ref={canvasRef} 
                 style={{ width: '100%' }}
-                className="relative mx-auto"
+                className="relative"
               >
               <div 
                 className={`pb-canvas-container border-${border} shadow-2xl relative`}
