@@ -246,6 +246,11 @@ export default function Photobooth() {
       }
       
       try {
+        // iOS Safari Bug Workaround: Run html-to-image twice. 
+        // The first pass forces Safari to decode and cache the images inside the foreignObject.
+        await toPng(canvasRef.current, { pixelRatio: 1, backgroundColor: 'transparent' });
+        
+        // Second pass actually captures the fully rendered DOM
         const dataUrl = await toPng(canvasRef.current, {
           pixelRatio: 2,
           backgroundColor: 'transparent'
@@ -455,7 +460,6 @@ export default function Photobooth() {
                     src={displaySrc} 
                     className="pb-canvas-photo absolute inset-0 w-full h-full object-cover" 
                     alt={`captured-${i}`} 
-                    style={{ transform: phase === 'setup' ? 'none' : 'scaleX(-1)' }} 
                   />
                 ) : (showCameraInGrid && key !== 'right' && i === photos.length) ? (
                   <div className="absolute inset-0 z-10 overflow-hidden">
