@@ -212,6 +212,14 @@ export default function Photobooth() {
       await new Promise(resolve => setTimeout(resolve, 100));
       
       try {
+        // iOS Safari Bug Fix: The first time html-to-image clones the DOM, Safari often fails to rasterize base64 images inside the hidden SVG in time, resulting in blank photos.
+        // We force a quick dummy render first to make Safari load the images into its cache.
+        await toPng(canvasRef.current, { pixelRatio: 1, backgroundColor: 'transparent' });
+        
+        // Wait a tiny bit for Safari's memory to catch up
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Actual export
         const dataUrl = await toPng(canvasRef.current, {
           pixelRatio: 2,
           backgroundColor: 'transparent'
