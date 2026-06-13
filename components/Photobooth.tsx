@@ -128,6 +128,29 @@ export default function Photobooth() {
 
   const [previewScale, setPreviewScale] = useState<number | undefined>(undefined);
 
+  // Dynamic Mobile Sticky Preview State
+  const [showStickyPreview, setShowStickyPreview] = useState(true);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    if (phase !== 'setup') return;
+    
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      // Show immediately if scrolled up, or if near the top
+      if (currentScrollY < 100 || currentScrollY < lastScrollY.current - 5) {
+        setShowStickyPreview(true);
+      } else if (currentScrollY > lastScrollY.current + 5 && currentScrollY > 100) {
+        // Hide when scrolling down past the header (added 5px buffer to avoid jitter)
+        setShowStickyPreview(false);
+      }
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [phase]);
+
   useEffect(() => {
     if (phase !== 'capture' && phase !== 'edit') return;
     const calculateScale = () => {
@@ -199,26 +222,35 @@ export default function Photobooth() {
 
   const handleDownload = async () => {
     if (canvasRef.current) {
+      // Find all wrapping containers that could restrict layout or visibility
       const mainContainer = document.querySelector('.pb-main') as HTMLElement;
-      let originalOverflow = '';
-      let originalHeight = '';
+      const zoomWrapper = document.getElementById('preview-zoom-wrapper') as HTMLElement;
+      const areaWrapper = document.getElementById('canvas-area-wrapper') as HTMLElement;
       
+      // Store original styles
+      const origMainOverflow = mainContainer ? mainContainer.style.overflow : '';
+      const origMainHeight = mainContainer ? mainContainer.style.height : '';
+      const origZoom = zoomWrapper ? zoomWrapper.style.zoom : '';
+      const origAreaOverflow = areaWrapper ? areaWrapper.style.overflow : '';
+      
+      // Remove all constraints temporarily
       if (mainContainer) {
-        originalOverflow = mainContainer.style.overflowY;
-        originalHeight = mainContainer.style.height;
-        mainContainer.style.overflowY = 'visible';
+        mainContainer.style.overflow = 'visible';
         mainContainer.style.height = 'auto';
       }
+      if (zoomWrapper) {
+        zoomWrapper.style.zoom = '1';
+      }
+      if (areaWrapper) {
+        areaWrapper.style.overflow = 'visible';
+      }
       
-      // Dynamic scale is applied via inline style now
       try {
         const dataUrl = await toPng(canvasRef.current, {
           pixelRatio: 2,
           backgroundColor: 'transparent'
         });
         
-        // Loop for multiple copies if we wanted to trigger multiple downloads,
-        // but normally we just download once. We'll append "-x{copies}" to the filename.
         const link = document.createElement('a');
         link.download = `kodaki-${Date.now()}-x${copies}.png`;
         link.href = dataUrl;
@@ -226,9 +258,16 @@ export default function Photobooth() {
       } catch (err) {
         console.error('Failed to export image', err);
       } finally {
+        // Restore all original constraints instantly
         if (mainContainer) {
-          mainContainer.style.overflowY = originalOverflow;
-          mainContainer.style.height = originalHeight;
+          mainContainer.style.overflow = origMainOverflow;
+          mainContainer.style.height = origMainHeight;
+        }
+        if (zoomWrapper) {
+          zoomWrapper.style.zoom = origZoom;
+        }
+        if (areaWrapper) {
+          areaWrapper.style.overflow = origAreaOverflow;
         }
       }
     }
@@ -408,12 +447,21 @@ export default function Photobooth() {
               return (
               <div key={i} className="pb-photo-wrapper relative w-full h-full overflow-hidden bg-slate-100 flex items-center justify-center">
                 {displaySrc ? (
-                  <img src={displaySrc} className="pb-canvas-photo w-full h-full object-cover" alt={`captured-${i}`} />
+                  <div 
+                    className="pb-canvas-photo w-full h-full" 
+                    style={{ 
+                      backgroundImage: `url("${displaySrc}")`, 
+                      backgroundSize: 'cover', 
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat'
+                    }} 
+                  />
                 ) : (showCameraInGrid && key !== 'right' && i === photos.length) ? (
                   <div className="absolute inset-0 z-10 overflow-hidden">
                     <Webcam 
                       ref={webcamRef} 
                       audio={false} 
+                      screenshotFormat="image/jpeg"
                       videoConstraints={{ facingMode: "user" }}
                       className={`w-full h-full object-cover transform scale-x-[-1] ${countdown !== null ? 'brightness-110' : ''}`}
                     />
@@ -755,7 +803,11 @@ export default function Photobooth() {
           className="max-w-[1400px] w-full bg-white border border-slate-200 rounded-[2rem] p-5 md:p-10 shadow-2xl flex flex-col lg:flex-row-reverse gap-8 lg:gap-16 min-h-fit lg:min-h-[750px] mt-4 md:mt-12 z-10 items-stretch"
         >
           {/* Right Column: Live Visualization (Now First in DOM for mobile sticky support) */}
-          <div className="w-full lg:w-[600px] xl:w-[700px] flex-shrink-0 bg-slate-50/80 rounded-3xl border border-slate-200 pt-6 pb-20 px-4 md:p-8 flex flex-col items-center justify-center relative overflow-hidden h-[450px] lg:h-auto min-h-[500px] lg:min-h-full sticky top-4 lg:top-auto z-30 shadow-xl lg:shadow-inner mb-6 lg:mb-0">
+          <div 
+            className={`w-full lg:w-[600px] xl:w-[700px] flex-shrink-0 bg-slate-50/80 rounded-3xl border border-slate-200 pt-6 pb-20 px-4 md:p-8 flex flex-col items-center justify-center relative overflow-hidden h-[450px] lg:h-auto min-h-[500px] lg:min-h-full sticky z-30 shadow-xl lg:shadow-inner mb-6 lg:mb-0 transition-all duration-500 ease-in-out ${
+              showStickyPreview ? 'top-4 lg:top-auto translate-y-0 opacity-100' : 'top-4 lg:top-auto -translate-y-[120%] lg:translate-y-0 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto'
+            }`}
+          >
              <div className="w-full flex-1 flex justify-center items-center overflow-visible">
                {/* Mobile scaling trick: CSS zoom shrinks layout bounds properly so it doesn't leave blank space */}
                <div className={['1x3', '1x4', '2x4-strip'].includes(layout) ? 'pb-zoom-1x' : 'pb-zoom-2x'}>
