@@ -445,16 +445,17 @@ export default function Photobooth() {
             {Array.from({ length: selectedLayout.count }).map((_, i) => {
               const displaySrc = phase === 'setup' ? STOCK_PHOTOS[i % STOCK_PHOTOS.length] : photos[i];
               return (
-              <div key={i} className="pb-photo-wrapper relative w-full h-full overflow-hidden bg-slate-100 flex items-center justify-center">
+              <div 
+                key={i} 
+                className="pb-photo-wrapper relative w-full h-full overflow-hidden bg-slate-100 flex items-center justify-center"
+                style={{ transform: 'translateZ(0)', WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
+              >
                 {displaySrc ? (
-                  <div 
-                    className="pb-canvas-photo w-full h-full" 
-                    style={{ 
-                      backgroundImage: `url("${displaySrc}")`, 
-                      backgroundSize: 'cover', 
-                      backgroundPosition: 'center',
-                      backgroundRepeat: 'no-repeat'
-                    }} 
+                  <img 
+                    src={displaySrc} 
+                    className="pb-canvas-photo absolute inset-0 w-full h-full object-cover" 
+                    alt={`captured-${i}`} 
+                    style={{ transform: phase === 'setup' ? 'none' : 'scaleX(-1)' }} 
                   />
                 ) : (showCameraInGrid && key !== 'right' && i === photos.length) ? (
                   <div className="absolute inset-0 z-10 overflow-hidden">
