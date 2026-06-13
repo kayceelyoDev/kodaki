@@ -45,7 +45,7 @@ const TEMPLATES = [
 
 const PRESETS = [
   { id: 'noir', name: 'Studio Noir', layout: '2x4-strip', template: 'noir', badge: 'POPULAR' },
-  { id: 'social', name: 'Social App', layout: '2x4-strip', template: 'social', badge: 'TRENDING' },
+  { id: 'social', name: 'Social App', layout: '1x1', template: 'social', badge: 'TRENDING' },
   { id: 'camcorder', name: 'Vintage Cam', layout: '2x4-strip', template: 'camcorder', badge: '' },
   { id: 'love-letter', name: 'Love Letter', layout: '1x3', template: 'love-letter', badge: 'NEW' },
   { id: 'directors-cut', name: 'Director Cut', layout: '2x4-strip', template: 'directors-cut', badge: 'NEW' },
@@ -231,7 +231,7 @@ export default function Photobooth() {
       // Store original styles
       const origMainOverflow = mainContainer ? mainContainer.style.overflow : '';
       const origMainHeight = mainContainer ? mainContainer.style.height : '';
-      const origTransform = zoomWrapper ? zoomWrapper.style.transform : '';
+      const origZoom = zoomWrapper ? zoomWrapper.style.zoom : '';
       const origAreaOverflow = areaWrapper ? areaWrapper.style.overflow : '';
       
       // Remove all constraints temporarily
@@ -240,7 +240,7 @@ export default function Photobooth() {
         mainContainer.style.height = 'auto';
       }
       if (zoomWrapper) {
-        zoomWrapper.style.transform = 'none';
+        zoomWrapper.style.zoom = '1';
       }
       if (areaWrapper) {
         areaWrapper.style.overflow = 'visible';
@@ -268,7 +268,7 @@ export default function Photobooth() {
           mainContainer.style.height = origMainHeight;
         }
         if (zoomWrapper) {
-          zoomWrapper.style.transform = origTransform;
+          zoomWrapper.style.zoom = origZoom;
         }
         if (areaWrapper) {
           areaWrapper.style.overflow = origAreaOverflow;
@@ -674,91 +674,6 @@ export default function Photobooth() {
             </div>
          )}
 
-         {/* ── Universal KODAKI Watermark ─ visible on every preset ── */}
-         <div
-           aria-hidden="true"
-           style={{
-             position: 'absolute',
-             inset: 0,
-             overflow: 'hidden',
-             pointerEvents: 'none',
-             zIndex: 15,
-             userSelect: 'none',
-           }}
-         >
-           {/* Layer 1: works on DARK backgrounds (white text + screen) */}
-           <div
-             style={{
-               position: 'absolute',
-               top: '-60%',
-               left: '-40%',
-               width: '180%',
-               height: '220%',
-               display: 'flex',
-               flexWrap: 'wrap',
-               gap: '20px 14px',
-               transform: 'rotate(-38deg)',
-               transformOrigin: 'center center',
-               alignContent: 'flex-start',
-               mixBlendMode: 'screen' as const,
-               opacity: 0.18,
-             }}
-           >
-             {Array.from({ length: 80 }).map((_, i) => (
-               <span
-                 key={`w-${i}`}
-                 style={{
-                   fontFamily: '"Courier New", monospace',
-                   fontWeight: 900,
-                   fontSize: '9px',
-                   letterSpacing: '0.25em',
-                   color: 'white',
-                   whiteSpace: 'nowrap',
-                   lineHeight: 1,
-                 }}
-               >
-                 KODAKI
-               </span>
-             ))}
-           </div>
-
-           {/* Layer 2: works on LIGHT backgrounds (dark text + multiply) */}
-           <div
-             style={{
-               position: 'absolute',
-               top: '-60%',
-               left: '-40%',
-               width: '180%',
-               height: '220%',
-               display: 'flex',
-               flexWrap: 'wrap',
-               gap: '20px 14px',
-               transform: 'rotate(-38deg)',
-               transformOrigin: 'center center',
-               alignContent: 'flex-start',
-               mixBlendMode: 'multiply' as const,
-               opacity: 0.12,
-             }}
-           >
-             {Array.from({ length: 80 }).map((_, i) => (
-               <span
-                 key={`d-${i}`}
-                 style={{
-                   fontFamily: '"Courier New", monospace',
-                   fontWeight: 900,
-                   fontSize: '9px',
-                   letterSpacing: '0.25em',
-                   color: '#1a1a1a',
-                   whiteSpace: 'nowrap',
-                   lineHeight: 1,
-                 }}
-               >
-                 KODAKI
-               </span>
-             ))}
-           </div>
-         </div>
-
       </div>
     );
   }; // end renderStrip
@@ -1046,19 +961,9 @@ export default function Photobooth() {
 
         <div id="canvas-area-wrapper" className="flex-1 bg-slate-200/50 rounded-3xl overflow-hidden relative flex items-center justify-center p-2 lg:p-8 border border-slate-200 shadow-inner h-[400px] lg:h-auto lg:min-h-[400px]">
           
-          <div className="pb-main w-full h-full flex flex-col items-center relative overflow-hidden pt-4 pb-24 lg:pb-0">
+          <div className="pb-main w-full h-full flex flex-col items-center justify-center relative overflow-hidden pt-4 pb-24 lg:pb-0">
             {/* The responsive scaling wrapper outside canvasRef */}
-            <div 
-              id="preview-zoom-wrapper" 
-              style={{ 
-                transform: previewScale ? `scale(${previewScale})` : 'none', 
-                transformOrigin: 'top center',
-                transition: 'transform 0.2s ease-out',
-                width: '100%',
-                display: 'flex',
-                justifyContent: 'center'
-              }}
-            >
+            <div id="preview-zoom-wrapper" style={{ zoom: previewScale }}>
               <div 
                 ref={canvasRef} 
                 style={{ width: layout === '2x4-strip' && phase === 'edit' ? '800px' : '500px' }}
