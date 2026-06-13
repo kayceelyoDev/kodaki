@@ -98,6 +98,37 @@ const STOCK_PHOTOS = [
   'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?q=80&w=400&auto=format&fit=crop'
 ];
 
+// Safari iOS Workaround: Render images directly into a <canvas> element. 
+// html-to-image handles canvas natively by calling toDataURL(), which completely bypasses 
+// Safari's notorious bug where it fails to parse/decode <img src="data:..."> inside foreignObject.
+const PhotoCanvas = ({ src, className, alt, mirror = false }: { src: string, className?: string, alt?: string, mirror?: boolean }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!src || !canvasRef.current) return;
+    const img = new Image();
+    img.crossOrigin = 'anonymous'; 
+    img.onload = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      canvas.width = img.width;
+      canvas.height = img.height;
+      
+      if (mirror) {
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+      }
+      
+      ctx.drawImage(img, 0, 0);
+    };
+    img.src = src;
+  }, [src, mirror]);
+
+  return <canvas ref={canvasRef} className={className} aria-label={alt} style={{ objectFit: 'cover' }} />;
+};
+
 export default function Photobooth() {
   const [phase, setPhase] = useState<Phase>('landing');
   
@@ -456,10 +487,11 @@ export default function Photobooth() {
                 style={{ transform: 'translateZ(0)', WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
               >
                 {displaySrc ? (
-                  <img 
+                  <PhotoCanvas 
                     src={displaySrc} 
                     className="pb-canvas-photo absolute inset-0 w-full h-full object-cover" 
                     alt={`captured-${i}`} 
+                    mirror={phase === 'capture' || phase === 'edit'} 
                   />
                 ) : (showCameraInGrid && key !== 'right' && i === photos.length) ? (
                   <div className="absolute inset-0 z-10 overflow-hidden">
