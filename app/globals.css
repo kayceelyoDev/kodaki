@@ -702,5 +702,4 @@ body {
 }
 .border-photomatics .pb-layout-grid { gap: 10px; }
 
-. i o s - e x p o r t - r e f l o w   {   t r a n s f o r m :   t r a n s l a t e Z ( 0 . 1 p x )   ! i m p o r t a n t ;   }  
- 
+.ios-export-reflow { transform: translateZ(0.1px) !important; }
