@@ -98,37 +98,6 @@ const STOCK_PHOTOS = [
   'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?q=80&w=400&auto=format&fit=crop'
 ];
 
-// Safari iOS Workaround: Render images directly into a <canvas> element. 
-// html-to-image handles canvas natively by calling toDataURL(), which completely bypasses 
-// Safari's notorious bug where it fails to parse/decode <img src="data:..."> inside foreignObject.
-const PhotoCanvas = ({ src, className, alt, mirror = false }: { src: string, className?: string, alt?: string, mirror?: boolean }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    if (!src || !canvasRef.current) return;
-    const img = new Image();
-    img.crossOrigin = 'anonymous'; 
-    img.onload = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      canvas.width = img.width;
-      canvas.height = img.height;
-      
-      if (mirror) {
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
-      }
-      
-      ctx.drawImage(img, 0, 0);
-    };
-    img.src = src;
-  }, [src, mirror]);
-
-  return <canvas ref={canvasRef} className={className} aria-label={alt} style={{ objectFit: 'cover' }} />;
-};
-
 export default function Photobooth() {
   const [phase, setPhase] = useState<Phase>('landing');
   
@@ -144,6 +113,7 @@ export default function Photobooth() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isFlashing, setIsFlashing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   
   // Editor State
   const [activeTab, setActiveTab] = useState('sticker');
@@ -253,35 +223,10 @@ export default function Photobooth() {
 
   const handleDownload = async () => {
     if (canvasRef.current) {
-      // Find all wrapping containers that could restrict layout or visibility
-      const mainContainer = document.querySelector('.pb-main') as HTMLElement;
-      const zoomWrapper = document.getElementById('preview-zoom-wrapper') as HTMLElement;
-      const areaWrapper = document.getElementById('canvas-area-wrapper') as HTMLElement;
-      
-      // Store original styles
-      const origMainOverflow = mainContainer ? mainContainer.style.overflow : '';
-      const origMainHeight = mainContainer ? mainContainer.style.height : '';
-      const origZoom = zoomWrapper ? zoomWrapper.style.zoom : '';
-      const origAreaOverflow = areaWrapper ? areaWrapper.style.overflow : '';
-      
-      // Remove all constraints temporarily
-      if (mainContainer) {
-        mainContainer.style.overflow = 'visible';
-        mainContainer.style.height = 'auto';
-      }
-      if (zoomWrapper) {
-        zoomWrapper.style.zoom = '1';
-      }
-      if (areaWrapper) {
-        areaWrapper.style.overflow = 'visible';
-      }
+      setIsExporting(true);
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       try {
-        // iOS Safari Bug Workaround: Run html-to-image twice. 
-        // The first pass forces Safari to decode and cache the images inside the foreignObject.
-        await toPng(canvasRef.current, { pixelRatio: 1, backgroundColor: 'transparent' });
-        
-        // Second pass actually captures the fully rendered DOM
         const dataUrl = await toPng(canvasRef.current, {
           pixelRatio: 2,
           backgroundColor: 'transparent'
@@ -294,17 +239,7 @@ export default function Photobooth() {
       } catch (err) {
         console.error('Failed to export image', err);
       } finally {
-        // Restore all original constraints instantly
-        if (mainContainer) {
-          mainContainer.style.overflow = origMainOverflow;
-          mainContainer.style.height = origMainHeight;
-        }
-        if (zoomWrapper) {
-          zoomWrapper.style.zoom = origZoom;
-        }
-        if (areaWrapper) {
-          areaWrapper.style.overflow = origAreaOverflow;
-        }
+        setIsExporting(false);
       }
     }
   };
@@ -350,7 +285,6 @@ export default function Photobooth() {
               <div className="text-[#c8dba0] font-mono text-[9px] tracking-[0.4em] uppercase opacity-80">✦ KODAKI ✦</div>
             </div>
          )}
-         {/* Stamp Strip - text overlay in center gap */}
          {/* Teal Photoism */}
          {border === 'teal-photoism' && (
             <>
@@ -476,7 +410,7 @@ export default function Photobooth() {
          )}
 
          {/* Grid */}
-         <div className={`pb-layout-grid pb-layout-${layout === '2x4-strip' ? '1x4' : layout} filter-${filter} flex-1 relative`}>
+         <div className={`pb-layout-grid pb-layout-${layout === '2x4-strip' ? '1x4' : layout} filter-${filter} flex-1 relative ${isExporting ? 'ios-export-reflow' : ''}`}>
             {/* Render actual photos */}
             {Array.from({ length: selectedLayout.count }).map((_, i) => {
               const displaySrc = phase === 'setup' ? STOCK_PHOTOS[i % STOCK_PHOTOS.length] : photos[i];
@@ -484,14 +418,14 @@ export default function Photobooth() {
               <div 
                 key={i} 
                 className="pb-photo-wrapper relative w-full h-full overflow-hidden bg-slate-100 flex items-center justify-center"
-                style={{ transform: 'translateZ(0)', WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
+                style={{ transform: 'translateZ(0)' }}
               >
                 {displaySrc ? (
-                  <PhotoCanvas 
+                  <img 
                     src={displaySrc} 
                     className="pb-canvas-photo absolute inset-0 w-full h-full object-cover" 
                     alt={`captured-${i}`} 
-                    mirror={phase === 'capture' || phase === 'edit'} 
+                    style={{ transform: phase === 'setup' ? 'none' : 'scaleX(-1)' }}
                   />
                 ) : (showCameraInGrid && key !== 'right' && i === photos.length) ? (
                   <div className="absolute inset-0 z-10 overflow-hidden">
